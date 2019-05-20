@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.168
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CtrlHikvision", "CtrlHikvision\CtrlHikvision.csproj", "{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Release|Any CPU = Release|Any CPU
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Debug|x64.ActiveCfg = Debug|x64
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Debug|x64.Build.0 = Debug|x64
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Release|x64.ActiveCfg = Release|x64
+		{17F3C5FB-D33D-4CC8-A2E3-CD5DB2B71FEF}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6E6904DE-6952-4121-A87F-28EDC1B8F3F9}
+	EndGlobalSection
+EndGlobal
