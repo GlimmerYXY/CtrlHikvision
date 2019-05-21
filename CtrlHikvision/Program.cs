@@ -147,14 +147,17 @@ namespace CtrlHikvision
                 pro.m_SetAlarm();
 
                 //监听管道
-                while (true)
-                {
-                    //string cmd = pro.ss.ReadString();
-                    //if(cmd == "open the door")
-                    //{
-                    //    pro.OpenDoor(); 
-                    //}
-                }
+                //while (true)
+                //{
+                //    //string cmd = pro.ss.ReadString();
+                //    //if(cmd == "open the door")
+                //    //{
+                //    //    pro.OpenDoor(); 
+                //    //}
+                //}
+                Console.ReadKey();
+                pro.OpenDoor();
+                pro.m_CloseAlarm();
             }
         }
 
