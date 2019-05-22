@@ -157,7 +157,9 @@ namespace CtrlHikvision
                 //}
                 Console.ReadKey();
                 pro.OpenDoor();
+                Console.ReadKey();
                 pro.m_CloseAlarm();
+                Console.ReadKey();
             }
         }
 
@@ -294,8 +296,14 @@ namespace CtrlHikvision
             uint dwSize = (uint)Marshal.SizeOf(struCtrlGate);
 
             struCtrlGate.dwSize = dwSize;
+            struCtrlGate.dwGatewayIndex = 1;
             struCtrlGate.byCommand = 1;
-
+            struCtrlGate.byLockType = 0;
+            struCtrlGate.wLockID = 1;
+            struCtrlGate.byControlSrc = new byte[CHCNetSDK.NAME_LEN];
+            struCtrlGate.byControlSrc[0] = 1;
+            struCtrlGate.byControlType = 1;
+            
 
             IntPtr ptrCtrlGate = Marshal.AllocHGlobal((int)dwSize);
             Marshal.StructureToPtr(struCtrlGate, ptrCtrlGate, false);
