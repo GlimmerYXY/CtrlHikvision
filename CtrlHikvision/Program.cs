@@ -13,7 +13,8 @@ using System.Threading.Tasks;
 using System.Security.Principal;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
-
+using System.Net;
+using System.Net.Sockets;
 
 namespace CtrlHikvision
 {
@@ -70,6 +71,8 @@ namespace CtrlHikvision
         private Int32 m_lUserID = -1;
         private Int32 m_lAlarmHandle = -1;
 
+        private Boolean toStop = false;
+        private int preComm = -1;
         private byte preDoorSta;
         private byte curDoorSta = 2;
         private byte m_DoorStatus;
@@ -98,8 +101,7 @@ namespace CtrlHikvision
             bool m_bInitSDK = CHCNetSDK.NET_DVR_Init();
             if (m_bInitSDK == false)
             {
-                Console.WriteLine("NET_DVR_Init error!");
-                //return;
+                pro.WriteLog("NET_DVR_Init error!");
             }
             else
             {
@@ -111,56 +113,62 @@ namespace CtrlHikvision
                 if (pro.m_lUserID < 0)
                 {
                     pro.iLastErr = CHCNetSDK.NET_DVR_GetLastError();
-                    Console.WriteLine("NET_DVR_Login_V30 failed, error code= " + pro.iLastErr);
-                    //return;
+                    pro.WriteLog("NET_DVR_Login_V30 failed, error code= " + pro.iLastErr);
                 }
                 else
                 {
-                    Console.WriteLine("NET_DVR_Login_V30 succeeded!");
-                }
+                    pro.WriteLog("NET_DVR_Login_V30 succeeded!");
 
-                //设置报警回调函数
-                if (pro.m_falarmData_V31 == null)
-                {
-                    pro.m_falarmData_V31 = new CHCNetSDK.MSGCallBack_V31(pro.MsgCallback_V31);
-                }
-                bool res = CHCNetSDK.NET_DVR_SetDVRMessageCallBack_V31(pro.m_falarmData_V31, IntPtr.Zero);
-                if (!res)
-                {
-                    pro.iLastErr = CHCNetSDK.NET_DVR_GetLastError();
-                    Console.WriteLine("NET_DVR_SetDVRMessageCallBack_V31 failed, error code= " + pro.iLastErr);
-                    //return;
-                }
-                else
-                {
-                    Console.WriteLine("NET_DVR_SetDVRMessageCallBack_V31 succeeded!");
-                }
+                    //设置报警回调函数
+                    if (pro.m_falarmData_V31 == null)
+                    {
+                        pro.m_falarmData_V31 = new CHCNetSDK.MSGCallBack_V31(pro.MsgCallback_V31);
+                    }
+                    bool res = CHCNetSDK.NET_DVR_SetDVRMessageCallBack_V31(pro.m_falarmData_V31, IntPtr.Zero);
+                    if (!res)
+                    {
+                        pro.iLastErr = CHCNetSDK.NET_DVR_GetLastError();
+                        pro.WriteLog("NET_DVR_SetDVRMessageCallBack_V31 failed, error code= " + pro.iLastErr);
+                    }
+                    else
+                    {
+                        pro.WriteLog("NET_DVR_SetDVRMessageCallBack_V31 succeeded!");
 
-                ////建立进程间管道
-                //pro.pipeClient = new NamedPipeClientStream(".", "Hik&Cortex",
-                //PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.Impersonation);
-                //Console.WriteLine("连接到 Hik&Cortex管道 ...\n");
-                //pro.pipeClient.Connect();
-                //pro.ss = new StreamString(pro.pipeClient);
+                        ////建立进程间管道
+                        //pro.pipeClient = new NamedPipeClientStream(".", "Hik&Cortex",
+                        //PipeDirection.InOut, PipeOptions.None, TokenImpersonationLevel.Impersonation);
+                        //Console.WriteLine("连接到 Hik&Cortex管道 ...\n");
+                        //pro.pipeClient.Connect();
+                        //pro.ss = new StreamString(pro.pipeClient);
 
-                //启用布防
-                pro.m_SetAlarm();
+                        //启用布防
+                        pro.m_SetAlarm();
 
-                //监听管道
-                //while (true)
-                //{
-                //    //string cmd = pro.ss.ReadString();
-                //    //if(cmd == "open the door")
-                //    //{
-                //    //    pro.OpenDoor(); 
-                //    //}
-                //}
-                Console.ReadKey();
-                pro.OpenDoor();
-                Console.ReadKey();
-                pro.m_CloseAlarm();
-                Console.ReadKey();
+                        //监听管道
+                        //while (true)
+                        //{
+                        //    //string cmd = pro.ss.ReadString();
+                        //    //if(cmd == "open the door")
+                        //    //{
+                        //    //    pro.OpenDoor(); 
+                        //    //}
+                        //}
+                        
+                        //自动获取远程开锁命令
+                        ThreadStart threadStart = new ThreadStart(pro.GetRemoteControl);
+                        Thread thread = new Thread(threadStart);
+                        thread.Start();
+                        
+                        Console.ReadKey();
+                        pro.toStop = true;
+
+                        pro.m_CloseAlarm();
+                        Console.ReadKey();
+                    }
+                }
             }
+
+            Console.ReadKey();
         }
 
         private void m_SetAlarm()
@@ -176,11 +184,11 @@ namespace CtrlHikvision
             {
                 //布防失败，输出错误号
                 iLastErr = CHCNetSDK.NET_DVR_GetLastError();
-                Console.WriteLine("NET_DVR_SetupAlarmChan_V41 failed, error code= " + iLastErr);
+                WriteLog("NET_DVR_SetupAlarmChan_V41 failed, error code= " + iLastErr);
             }
             else
             {
-                Console.WriteLine("NET_DVR_SetupAlarmChan_V41 succeeded!");
+                WriteLog("NET_DVR_SetupAlarmChan_V41 succeeded!");
             }
         }
 
@@ -192,19 +200,19 @@ namespace CtrlHikvision
                 {
                     //撤防失败，输出错误号
                     iLastErr = CHCNetSDK.NET_DVR_GetLastError();
-                    Console.WriteLine("NET_DVR_CloseAlarmChan_V30 failed, error code= " + iLastErr);
+                    WriteLog("NET_DVR_CloseAlarmChan_V30 failed, error code= " + iLastErr);
                 }
                 else
                 {
                     //未布防
-                    Console.WriteLine("NET_DVR_CloseAlarmChan_V30 succeeded!");
+                    WriteLog("NET_DVR_CloseAlarmChan_V30 succeeded!");
                     m_lAlarmHandle = -1;
                 }
             }
             else
             {
                 //未布防
-                Console.WriteLine("Haven't set alarm");
+                WriteLog("Haven't set alarm");
             }
         }
 
@@ -256,7 +264,7 @@ namespace CtrlHikvision
             }
         }
 
-        //可视事件
+        //可视事件获取门状态
         private void ProcessCommAlarm_VideoInterComAlarm(ref CHCNetSDK.NET_DVR_ALARMER pAlarmer, IntPtr pAlarmInfo, uint dwBufLen, IntPtr pUser)
         {
             CHCNetSDK.NET_DVR_VIDEO_INTERCOM_EVENT struVideoInterComEvent = new CHCNetSDK.NET_DVR_VIDEO_INTERCOM_EVENT();
@@ -275,7 +283,7 @@ namespace CtrlHikvision
 
             preDoorSta = curDoorSta;
             curDoorSta = m_struDoorStatusInfo.byDoorStatus;
-            WriteLog(curDoorSta.ToString());
+            InformGateStatus(curDoorSta.ToString());
             
             //if (preDoorSta == 0 && curDoorSta == 1)
             //{
@@ -304,20 +312,20 @@ namespace CtrlHikvision
             struCtrlGate.byControlSrc[0] = 1;
             struCtrlGate.byControlType = 1;
             
-
             IntPtr ptrCtrlGate = Marshal.AllocHGlobal((int)dwSize);
             Marshal.StructureToPtr(struCtrlGate, ptrCtrlGate, false);
 
             if (!CHCNetSDK.NET_DVR_RemoteControl(m_lUserID, CHCNetSDK.NET_DVR_REMOTECONTROL_GATEWAY, ptrCtrlGate, dwSize))
             {   //失败
                 iLastErr = CHCNetSDK.NET_DVR_GetLastError();
-                Console.WriteLine("NET_DVR_REMOTECONTROL_GATEWAY failed, error code= {0}", iLastErr);
-
+                if(iLastErr == 0)
+                    WriteLog("NET_DVR_REMOTECONTROL_GATEWAY succeeded!");
+                else
+                    WriteLog("NET_DVR_REMOTECONTROL_GATEWAY failed, error code= " + iLastErr);
             }
             else
             {   //成功
-                Console.WriteLine("NET_DVR_REMOTECONTROL_GATEWAY succeeded!");
-
+                WriteLog("NET_DVR_REMOTECONTROL_GATEWAY succeeded!");
             }
             Marshal.FreeHGlobal(ptrCtrlGate);
         }
@@ -344,11 +352,34 @@ namespace CtrlHikvision
         //写日志
         private void WriteLog(string msg)
         {
+            Console.WriteLine(DateTime.Now.ToString("HH:mm:ss   ") + msg);
+
+            StreamWriter sw = null;
+            try
+            {
+                string logPath = Directory.GetCurrentDirectory();
+                lock (fileObj)
+                {
+                    sw = File.AppendText(logPath + "/HikLog.txt");
+                    sw.WriteLine(DateTime.Now.ToString("HH:mm:ss   ") + msg);
+                    sw.Close();
+                    sw.Dispose();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message + ex.StackTrace);
+            }
+        }
+
+        //通知门状态
+        private void InformGateStatus(string msg)
+        {
             try
             {
                 lock (fileObj)
                 {
-                    StreamWriter sw = new StreamWriter("D:\\1.txt");
+                    StreamWriter sw = new StreamWriter("D:\\GateStatus.txt");
                     sw.Write(msg);
                     sw.Close();
                     sw.Dispose();
@@ -356,9 +387,116 @@ namespace CtrlHikvision
             }
             catch (Exception ex)
             {
-                WriteLog(ex.Message + ex.StackTrace);
+                Console.WriteLine(ex.Message + ex.StackTrace);
             }
         }
-        
+
+        //获取远程开锁命令
+        private void GetRemoteControl()
+        {
+            //while (!toStop)
+            //{
+            //    try
+            //    {
+            //        FileStream stream = new FileStream("D:\\ControlGate.txt", FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            //        StreamReader sr = new StreamReader(stream);
+
+            //        string stmp = sr.ReadLine();
+            //        sr.ReadToEnd();                            //在这里空读一下，这样就把剩余内容释放了。然后再重新读取。
+            //        sr.BaseStream.Seek(0, SeekOrigin.Begin);
+            //        WriteLog(stmp);
+
+            //        if (stmp != null)
+            //        {
+            //            int curComm = int.Parse(stmp);
+
+            //            if (curComm != preComm && curComm == 1)
+            //            {
+            //                WriteLog("准备开门");
+            //                OpenDoor();
+            //            }
+            //            Thread.Sleep(2000);
+            //        }
+            //    }
+            //    catch (Exception ex)
+            //    {
+            //        WriteLog(ex.Message);
+            //    }
+            //}
+            
+
+            //创建套接字
+            Socket listenfd = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            WriteLog("创建套接字！\n");
+
+            //绑定
+            IPAddress ipAdr = IPAddress.Parse("127.0.0.1");
+            IPEndPoint ipEp = new IPEndPoint(ipAdr, 65432);
+            listenfd.Bind(ipEp);//127.0.0.1是回送地址，一般用于测试。也可以设置成真实的IP地址，然后在两台电脑上分别运行客户端和服务端程序。
+            WriteLog("绑定！\n");
+
+            //监听
+            WriteLog("监听…\n");
+            listenfd.Listen(0);//参数backlog指定队列中最多可容纳等待接受的连接数， 0表示不限制
+
+            while (true)
+            {
+                try
+                {
+                    //接收连接，阻塞方法
+                    WriteLog("接收连接…\n");
+                    Socket connection = listenfd.Accept();//返回一个新客户端的Socket，专门用来处理该客户端的数据
+                    
+                    //获取客户端的IP和端口号
+                    IPAddress clientIP = (connection.RemoteEndPoint as IPEndPoint).Address;
+                    int clientPort = (connection.RemoteEndPoint as IPEndPoint).Port;
+                    string RemoteEndPoint = connection.RemoteEndPoint.ToString();//客户端网络结点号
+                    WriteLog("与" + RemoteEndPoint + "客户端建立连接！\n");
+
+                    IPEndPoint netPoint = connection.RemoteEndPoint as IPEndPoint;
+
+                    //创建一个通信线程
+                    ParameterizedThreadStart pts = new ParameterizedThreadStart(Recv);
+                    Thread thread = new Thread(pts);
+                    thread.IsBackground = true;//设置为后台线程，随着主线程退出而退出
+                    thread.Start(connection);
+                }
+                catch (Exception ex)
+                {
+                    WriteLog(ex.Message);
+                    break;
+                }
+            }
+        }
+
+        private void Recv(object socketClientPara)
+        {
+            Socket socketServer = socketClientPara as Socket;
+            while (true)
+            {
+                try
+                {
+                    //接收消息，阻塞方法
+                    byte[] readBuff = new byte[1024];
+                    int length = socketServer.Receive(readBuff);
+                    string strRecMsg = System.Text.Encoding.UTF8.GetString(readBuff, 0, length);
+                    WriteLog("收到客户端[" + socketServer.RemoteEndPoint + "]：" + strRecMsg + "\n");
+                    
+                    //发送消息
+                    //服务器通过connfd.Send发送数据， 它接受一个byte[]类型的参数指明要发送的内容。 Send的返回值指明发送数据的长度（例子中没有使用） 。 服务器程序用System.Text.Encoding.Default.GetBytes（字符串）
+                    //把字符串转换成byte[] 数组， 然后发送给客户端（且会在字符串前面加上“serv echo”） 
+                    byte[] bytes = Encoding.Default.GetBytes("server received " + strRecMsg);
+                    socketServer.Send(bytes);
+                }
+                catch (Exception ex)
+                {
+                    WriteLog("与客户端[" + socketServer.RemoteEndPoint + "]连接已中断…\n");
+                    WriteLog(ex.Message);
+
+                    socketServer.Close();
+                    break;
+                }
+            }
+        }
     }
 }
