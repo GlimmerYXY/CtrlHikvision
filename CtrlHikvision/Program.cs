@@ -427,16 +427,16 @@ namespace CtrlHikvision
 
             //创建套接字
             Socket listenfd = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            WriteLog("创建套接字！\n");
+            WriteLog("创建套接字！");
 
             //绑定
             IPAddress ipAdr = IPAddress.Parse("127.0.0.1");
             IPEndPoint ipEp = new IPEndPoint(ipAdr, 65432);
             listenfd.Bind(ipEp);//127.0.0.1是回送地址，一般用于测试。也可以设置成真实的IP地址，然后在两台电脑上分别运行客户端和服务端程序。
-            WriteLog("绑定！\n");
+            WriteLog("绑定！");
 
             //监听
-            WriteLog("监听…\n");
+            WriteLog("监听…");
             listenfd.Listen(0);//参数backlog指定队列中最多可容纳等待接受的连接数， 0表示不限制
 
             while (true)
@@ -444,14 +444,14 @@ namespace CtrlHikvision
                 try
                 {
                     //接收连接，阻塞方法
-                    WriteLog("接收连接…\n");
+                    WriteLog("接收连接…");
                     Socket connection = listenfd.Accept();//返回一个新客户端的Socket，专门用来处理该客户端的数据
                     
                     //获取客户端的IP和端口号
                     IPAddress clientIP = (connection.RemoteEndPoint as IPEndPoint).Address;
                     int clientPort = (connection.RemoteEndPoint as IPEndPoint).Port;
                     string RemoteEndPoint = connection.RemoteEndPoint.ToString();//客户端网络结点号
-                    WriteLog("与" + RemoteEndPoint + "客户端建立连接！\n");
+                    WriteLog("与" + RemoteEndPoint + "客户端建立连接！");
 
                     IPEndPoint netPoint = connection.RemoteEndPoint as IPEndPoint;
 
@@ -480,8 +480,11 @@ namespace CtrlHikvision
                     byte[] readBuff = new byte[1024];
                     int length = socketServer.Receive(readBuff);
                     string strRecMsg = System.Text.Encoding.UTF8.GetString(readBuff, 0, length);
-                    WriteLog("收到客户端[" + socketServer.RemoteEndPoint + "]：" + strRecMsg + "\n");
-                    
+                    WriteLog("收到客户端[" + socketServer.RemoteEndPoint + "]：" + strRecMsg);
+
+                    if (strRecMsg == "1")
+                        OpenDoor();
+
                     //发送消息
                     //服务器通过connfd.Send发送数据， 它接受一个byte[]类型的参数指明要发送的内容。 Send的返回值指明发送数据的长度（例子中没有使用） 。 服务器程序用System.Text.Encoding.Default.GetBytes（字符串）
                     //把字符串转换成byte[] 数组， 然后发送给客户端（且会在字符串前面加上“serv echo”） 
@@ -490,7 +493,7 @@ namespace CtrlHikvision
                 }
                 catch (Exception ex)
                 {
-                    WriteLog("与客户端[" + socketServer.RemoteEndPoint + "]连接已中断…\n");
+                    WriteLog("与客户端[" + socketServer.RemoteEndPoint + "]连接已中断…");
                     WriteLog(ex.Message);
 
                     socketServer.Close();
