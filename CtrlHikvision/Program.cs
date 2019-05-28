@@ -62,7 +62,7 @@ namespace CtrlHikvision
     {
         #region 全局变量
 
-        private string DVRIPAddress;    //管理机：99-admin123，门口机：90-Hik12345
+        private string DVRIPAddress;    //管理机：99-admin123，门口机：90-hik317317
         private Int16 DVRPortNumber;
         private string DVRUserName;
         private string DVRPassword;
@@ -71,15 +71,18 @@ namespace CtrlHikvision
         private Int32 m_lUserID = -1;
         private Int32 m_lAlarmHandle = -1;
 
+        private CHCNetSDK.MSGCallBack_V31 m_falarmData_V31 = null;
+        private CHCNetSDK.NET_DVR_DEVICEINFO_V30 DeviceInfo = new CHCNetSDK.NET_DVR_DEVICEINFO_V30();
+
         private Boolean toStop = false;
         private int preComm = -1;
         private byte preDoorSta;
         private byte curDoorSta = 2;
         private byte m_DoorStatus;
         private object fileObj = new object();
-        
-        private CHCNetSDK.MSGCallBack_V31 m_falarmData_V31 = null;
-        private CHCNetSDK.NET_DVR_DEVICEINFO_V30 DeviceInfo = new CHCNetSDK.NET_DVR_DEVICEINFO_V30();
+
+        private Socket socketWatch = null;
+        private Socket connection = null;
 
         private NamedPipeClientStream pipeClient;
         private StreamString ss;
@@ -154,8 +157,8 @@ namespace CtrlHikvision
                         //    //}
                         //}
                         
-                        //自动获取远程开锁命令
-                        ThreadStart threadStart = new ThreadStart(pro.GetRemoteControl);
+                        //建立socket通信
+                        ThreadStart threadStart = new ThreadStart(pro.CommunicateBySocket);
                         Thread thread = new Thread(threadStart);
                         thread.Start();
                         
@@ -170,6 +173,9 @@ namespace CtrlHikvision
 
             Console.ReadKey();
         }
+
+        /**********************************  SDK  **********************************/
+        #region SDK
 
         private void m_SetAlarm()
         {
@@ -277,24 +283,28 @@ namespace CtrlHikvision
             CHCNetSDK.NET_DVR_DOOR_STATUS_INFO m_struDoorStatusInfo = new CHCNetSDK.NET_DVR_DOOR_STATUS_INFO();
             m_struDoorStatusInfo = (CHCNetSDK.NET_DVR_DOOR_STATUS_INFO)Marshal.PtrToStructure(ptrDoorStatusInfo, typeof(CHCNetSDK.NET_DVR_DOOR_STATUS_INFO));
 
+            //是不是应该判断一下事件类型
             string stringAlarm = DateTime.Now.ToString("HH:mm:ss   ") + "可视对讲事件，byEventType ：" + struVideoInterComEvent.byEventType
                 + "，门锁状态：" + m_struDoorStatusInfo.byDoorStatus;
             Console.WriteLine(stringAlarm);
 
-            preDoorSta = curDoorSta;
-            curDoorSta = m_struDoorStatusInfo.byDoorStatus;
-            InformGateStatus(curDoorSta.ToString());
-            
-            //if (preDoorSta == 0 && curDoorSta == 1)
-            //{
-            //    //开门
-            //    ss.WriteString("1");
-            //}
-            //else if(preDoorSta == 1 && curDoorSta == 0)
-            //{
-            //    //关门
-            //    ss.WriteString("0");
-            //}
+            if(struVideoInterComEvent.byEventType == 20)
+            {
+                preDoorSta = curDoorSta;
+                curDoorSta = m_struDoorStatusInfo.byDoorStatus;
+                //SendGateStatus(curDoorSta.ToString());
+
+                if (preDoorSta == 0 && curDoorSta == 1) //门开了
+                {
+                    //ss.WriteString("1");
+                    SendGateStatus("opened");
+                }
+                else if (preDoorSta == 1 && curDoorSta == 0)    //门关了
+                {
+                    //ss.WriteString("0");
+                    SendGateStatus("closed");
+                }
+            }
         }
 
         //远程开门
@@ -330,7 +340,11 @@ namespace CtrlHikvision
             Marshal.FreeHGlobal(ptrCtrlGate);
         }
         
-        
+        #endregion
+
+        /**********************************  联动  **********************************/
+        #region 联动
+
         //获取配置参数
         private void AccessAppSettings()
         {
@@ -371,28 +385,9 @@ namespace CtrlHikvision
                 Console.WriteLine(ex.Message + ex.StackTrace);
             }
         }
-
-        //通知门状态
-        private void InformGateStatus(string msg)
-        {
-            try
-            {
-                lock (fileObj)
-                {
-                    StreamWriter sw = new StreamWriter("D:\\GateStatus.txt");
-                    sw.Write(msg);
-                    sw.Close();
-                    sw.Dispose();
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message + ex.StackTrace);
-            }
-        }
-
-        //获取远程开锁命令
-        private void GetRemoteControl()
+        
+        //建立socket通信
+        private void CommunicateBySocket()
         {
             //while (!toStop)
             //{
@@ -426,18 +421,18 @@ namespace CtrlHikvision
             
 
             //创建套接字
-            Socket listenfd = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            socketWatch = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
             WriteLog("创建套接字！");
 
             //绑定
             IPAddress ipAdr = IPAddress.Parse("127.0.0.1");
             IPEndPoint ipEp = new IPEndPoint(ipAdr, 65432);
-            listenfd.Bind(ipEp);//127.0.0.1是回送地址，一般用于测试。也可以设置成真实的IP地址，然后在两台电脑上分别运行客户端和服务端程序。
+            socketWatch.Bind(ipEp);//127.0.0.1是回送地址，一般用于测试。也可以设置成真实的IP地址，然后在两台电脑上分别运行客户端和服务端程序。
             WriteLog("绑定！");
 
             //监听
             WriteLog("监听…");
-            listenfd.Listen(0);//参数backlog指定队列中最多可容纳等待接受的连接数， 0表示不限制
+            socketWatch.Listen(0);//参数backlog指定队列中最多可容纳等待接受的连接数， 0表示不限制
 
             while (true)
             {
@@ -445,61 +440,84 @@ namespace CtrlHikvision
                 {
                     //接收连接，阻塞方法
                     WriteLog("接收连接…");
-                    Socket connection = listenfd.Accept();//返回一个新客户端的Socket，专门用来处理该客户端的数据
-                    
+                    connection = socketWatch.Accept();//返回一个新客户端的Socket，专门用来处理该客户端的数据
+
                     //获取客户端的IP和端口号
-                    IPAddress clientIP = (connection.RemoteEndPoint as IPEndPoint).Address;
-                    int clientPort = (connection.RemoteEndPoint as IPEndPoint).Port;
-                    string RemoteEndPoint = connection.RemoteEndPoint.ToString();//客户端网络结点号
-                    WriteLog("与" + RemoteEndPoint + "客户端建立连接！");
+                    IPEndPoint RemoteEndPoint = connection.RemoteEndPoint as IPEndPoint;
+                    IPAddress clientIP = RemoteEndPoint.Address;
+                    int clientPort = RemoteEndPoint.Port;
+                    WriteLog("与" + RemoteEndPoint.ToString() + "客户端建立连接！");
+                    //dicSocket.Add(RemoteEndPoint.ToString(), connection);  //有多个客户端连接时，将远程连接的客户端的IP和Socket存入集合中
 
-                    IPEndPoint netPoint = connection.RemoteEndPoint as IPEndPoint;
-
-                    //创建一个通信线程
-                    ParameterizedThreadStart pts = new ParameterizedThreadStart(Recv);
+                    //创建一个Recv通信线程
+                    ParameterizedThreadStart pts = new ParameterizedThreadStart(RecvRemoteCommand);
                     Thread thread = new Thread(pts);
                     thread.IsBackground = true;//设置为后台线程，随着主线程退出而退出
                     thread.Start(connection);
                 }
                 catch (Exception ex)
                 {
-                    WriteLog(ex.Message);
+                    WriteLog(ex.Message + ex.StackTrace);
                     break;
                 }
             }
         }
 
-        private void Recv(object socketClientPara)
+        //获取远程开锁命令
+        private void RecvRemoteCommand(object socketClientPara)
         {
-            Socket socketServer = socketClientPara as Socket;
+            Socket socketRecv = socketClientPara as Socket;
             while (true)
             {
                 try
                 {
                     //接收消息，阻塞方法
                     byte[] readBuff = new byte[1024];
-                    int length = socketServer.Receive(readBuff);
-                    string strRecMsg = System.Text.Encoding.UTF8.GetString(readBuff, 0, length);
-                    WriteLog("收到客户端[" + socketServer.RemoteEndPoint + "]：" + strRecMsg);
+                    int length = socketRecv.Receive(readBuff);
+                    string strRecMsg = Encoding.UTF8.GetString(readBuff, 0, length);
+                    WriteLog("收到客户端[" + socketRecv.RemoteEndPoint + "]：" + strRecMsg);
 
                     if (strRecMsg == "1")
                         OpenDoor();
-
-                    //发送消息
-                    //服务器通过connfd.Send发送数据， 它接受一个byte[]类型的参数指明要发送的内容。 Send的返回值指明发送数据的长度（例子中没有使用） 。 服务器程序用System.Text.Encoding.Default.GetBytes（字符串）
-                    //把字符串转换成byte[] 数组， 然后发送给客户端（且会在字符串前面加上“serv echo”） 
-                    byte[] bytes = Encoding.Default.GetBytes("server received " + strRecMsg);
-                    socketServer.Send(bytes);
                 }
                 catch (Exception ex)
                 {
-                    WriteLog("与客户端[" + socketServer.RemoteEndPoint + "]连接已中断…");
-                    WriteLog(ex.Message);
+                    WriteLog("与客户端[" + socketRecv.RemoteEndPoint + "]连接已中断…");
+                    WriteLog(ex.Message + ex.StackTrace);
 
-                    socketServer.Close();
+                    socketRecv.Close();
                     break;
                 }
             }
         }
+
+        //发送门状态
+        private void SendGateStatus(string strSendMsg)
+        {
+            try
+            {
+                //lock (fileObj)
+                //{
+                //    StreamWriter sw = new StreamWriter("D:\\GateStatus.txt");
+                //    sw.Write(msg);
+                //    sw.Close();
+                //    sw.Dispose();
+                //}
+
+                //发送消息
+                //服务器通过connfd.Send发送数据， 它接受一个byte[]类型的参数指明要发送的内容。 Send的返回值指明发送数据的长度（例子中没有使用） 。 服务器程序用System.Text.Encoding.Default.GetBytes（字符串）
+                //把字符串转换成byte[] 数组， 然后发送给客户端（且会在字符串前面加上“serv echo”） 
+                byte[] bytes = Encoding.Default.GetBytes(strSendMsg);
+                connection.Send(bytes);
+                WriteLog("发给客户端[" + connection.RemoteEndPoint + "]：" + strSendMsg);
+            }
+            catch (Exception ex)
+            {
+                WriteLog(ex.Message + ex.StackTrace);
+            }
+        }
+
+        #endregion
+
     }
 }

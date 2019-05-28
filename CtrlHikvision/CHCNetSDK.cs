@@ -11140,6 +11140,7 @@ namespace CtrlHikvision
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 11, ArraySubType = UnmanagedType.I1)]
             public byte[] byRes;
         }
+
         public const int MAX_DEV_NUMBER_LEN = 32;   //设备编号最大长度
         //IP可视对讲事件记录信息结构体
         [StructLayoutAttribute(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
@@ -11158,10 +11159,7 @@ namespace CtrlHikvision
             [MarshalAsAttribute(UnmanagedType.ByValArray, SizeConst = 252, ArraySubType = UnmanagedType.I1)]
             public byte[] byRes2;//保留
         }
-
-
-
-
+        
         [StructLayoutAttribute(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
         public struct NET_DVR_DOOR_STATUS_INFO
         {
